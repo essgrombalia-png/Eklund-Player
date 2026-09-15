@@ -23,6 +23,7 @@ import { AddToPlaylistModal } from './components/modals/AddToPlaylistModal';
 import { ArtworkEditorModal } from './components/modals/ArtworkEditorModal';
 import { DropZoneOverlay } from './components/common/DropZoneOverlay';
 import { TechnicsWallpaperBackground } from './components/common/TechnicsWallpaperBackground';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
 
 const storage = new StorageService();
 
@@ -412,6 +413,78 @@ export default function App() {
     setCurrentTime(0);
     setIsPlaying(true);
   };
+
+  // --- Windows 11 System Media Transport Controls (SMTC) & Media Session API ---
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    if (currentMedia) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentMedia.title || 'Eklund SL-1200',
+        artist: currentMedia.artist || 'Technics Direct Drive Deck',
+        album: currentMedia.album || 'Audiophile Vinyl Collection',
+        artwork: [
+          { src: currentMedia.artwork || '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: currentMedia.artwork || '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+        ],
+      });
+    }
+
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+    const actionHandlers: [MediaSessionAction, MediaSessionActionHandler][] = [
+      ['play', () => handlePlayPause()],
+      ['pause', () => handlePlayPause()],
+      ['previoustrack', () => handlePrevious()],
+      ['nexttrack', () => handleNext()],
+      ['seekto', (details) => {
+        if (details.seekTime !== undefined) {
+          handleSeek(details.seekTime);
+        }
+      }],
+      ['seekbackward', (details) => {
+        const offset = details.seekOffset || 10;
+        handleSeek(Math.max(0, currentTime - offset));
+      }],
+      ['seekforward', (details) => {
+        const offset = details.seekOffset || 10;
+        handleSeek(Math.min(duration, currentTime + offset));
+      }],
+    ];
+
+    for (const [action, handler] of actionHandlers) {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // Guard against unsupported actions in specific platforms
+      }
+    }
+
+    return () => {
+      for (const [action] of actionHandlers) {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch {
+          // Ignore
+        }
+      }
+    };
+  }, [currentMedia, isPlaying, currentTime, duration]);
+
+  // Synchronize Windows 11 Media Session Position State (timeline in Volume flyout)
+  useEffect(() => {
+    if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession && duration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: duration,
+          playbackRate: effectiveSpeed,
+          position: Math.max(0, Math.min(duration, currentTime)),
+        });
+      } catch {
+        // Safe fallback
+      }
+    }
+  }, [currentTime, duration, effectiveSpeed]);
 
   const handleToggleFavorite = async (id: string) => {
     const item = mediaList.find((m) => m.id === id);
@@ -836,6 +909,31 @@ export default function App() {
     }
   };
 
+  // --- Windows 11 File Handling API (LaunchQueue - "Open With" integration) ---
+  useEffect(() => {
+    if ('launchQueue' in window && typeof (window as any).launchQueue?.setConsumer === 'function') {
+      try {
+        (window as any).launchQueue.setConsumer(async (launchParams: any) => {
+          if (!launchParams?.files || launchParams.files.length === 0) return;
+          const files: File[] = [];
+          for (const handle of launchParams.files) {
+            try {
+              const f = await handle.getFile();
+              if (f) files.push(f);
+            } catch (err) {
+              console.warn('Failed to access launched file handle:', err);
+            }
+          }
+          if (files.length > 0) {
+            handleImportLocalFiles(files);
+          }
+        });
+      } catch (err) {
+        console.warn('LaunchQueue setup notice:', err);
+      }
+    }
+  }, []);
+
   // Global Drag and Drop Handlers
   useEffect(() => {
     const handleDragEnter = (e: DragEvent) => {
@@ -976,7 +1074,7 @@ export default function App() {
   }, [currentTime, duration, volume, isPlaying, queue.length, currentIndex, isShuffle, repeatMode, pitchRange]);
 
   return (
-    <div className="relative w-full h-full min-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-transparent text-white font-sans select-none">
+    <div className="relative w-screen h-screen overflow-hidden bg-transparent text-white font-sans select-none">
       {/* High-Fidelity Responsive Technics Wallpaper Background */}
       <TechnicsWallpaperBackground isPlaying={isPlaying} />
 
@@ -1161,6 +1259,9 @@ export default function App() {
         currentTrack={currentMedia}
         onSaveArtwork={handleSaveArtwork}
       />
+
+      {/* Windows 11 Offline Status Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

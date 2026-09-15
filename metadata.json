@@ -1,6 +1,6 @@
 {
   "name": "Eklund SL-1200",
-  "description": "High-fidelity audiophile vinyl turntable music deck featuring the iconic Eklund SL-1200 player with real-time audio playback, pitch fader, responsive high-resolution wallpaper background, animated stereo LED VU meters, and custom slipmat studio.",
+  "description": "High-fidelity audiophile vinyl turntable media player installable on Windows 11 with real-time audio playback, pitch fader, animated stereo LED VU meters, custom slipmat studio, taskbar media controls, and offline audio support.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

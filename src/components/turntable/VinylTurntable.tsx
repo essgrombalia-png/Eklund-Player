@@ -312,7 +312,6 @@ export const VinylTurntable = ({
     setDragArmAngle(initialAngle);
 
     const onPointerMove = (moveEvt: PointerEvent) => {
-      moveEvt.preventDefault();
       const angle = computeAngleFromEvent(moveEvt.clientX, moveEvt.clientY);
       setDragArmAngle(angle);
     };
@@ -320,11 +319,11 @@ export const VinylTurntable = ({
     const onPointerUp = (upEvt: PointerEvent) => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
 
       const finalAngle = computeAngleFromEvent(upEvt.clientX, upEvt.clientY);
       setIsDraggingArm(false);
       setDragArmAngle(null);
+
       // If dropped near rest cradle (< 12.5deg): Park and pause
       if (finalAngle < 12.5) {
         setTonearmStage('lowering_to_rest');
@@ -349,7 +348,6 @@ export const VinylTurntable = ({
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
   };
 
   // Cue Lift Lever Click

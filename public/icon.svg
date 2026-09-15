@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <radialGradient id="vinylGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#121214"/>
+      <stop offset="40%" stop-color="#18181c"/>
+      <stop offset="70%" stop-color="#0f0f11"/>
+      <stop offset="95%" stop-color="#242428"/>
+      <stop offset="100%" stop-color="#3d3d44"/>
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fcedc0"/>
+      <stop offset="35%" stop-color="#dfbf66"/>
+      <stop offset="70%" stop-color="#be942f"/>
+      <stop offset="100%" stop-color="#8c6418"/>
+    </linearGradient>
+    <radialGradient id="labelGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#d97706"/>
+      <stop offset="65%" stop-color="#b45309"/>
+      <stop offset="100%" stop-color="#78350f"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Turntable Plinth -->
+  <rect x="24" y="24" width="464" height="464" rx="42" fill="#141416" stroke="url(#goldGrad)" stroke-width="4"/>
+  
+  <!-- Outer Platter Ring with Strobe Dots -->
+  <circle cx="230" cy="256" r="186" fill="#202024" stroke="url(#goldGrad)" stroke-width="3"/>
+  <circle cx="230" cy="256" r="180" fill="none" stroke="#2c2c34" stroke-width="6" stroke-dasharray="3 6"/>
+  
+  <!-- Vinyl Record -->
+  <circle cx="230" cy="256" r="170" fill="url(#vinylGrad)" stroke="#09090b" stroke-width="2"/>
+  
+  <!-- Grooves -->
+  <circle cx="230" cy="256" r="150" fill="none" stroke="#26262b" stroke-width="1" opacity="0.6"/>
+  <circle cx="230" cy="256" r="130" fill="none" stroke="#26262b" stroke-width="1" opacity="0.6"/>
+  <circle cx="230" cy="256" r="110" fill="none" stroke="#26262b" stroke-width="1" opacity="0.6"/>
+  <circle cx="230" cy="256" r="90" fill="none" stroke="#26262b" stroke-width="1" opacity="0.6"/>
+  
+  <!-- Center Label Disc -->
+  <circle cx="230" cy="256" r="62" fill="url(#labelGrad)" stroke="url(#goldGrad)" stroke-width="2"/>
+  <text x="230" y="248" font-family="system-ui, sans-serif" font-size="14" font-weight="900" fill="#fef3c7" text-anchor="middle" letter-spacing="2">EKLUND</text>
+  <text x="230" y="266" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#fde68a" text-anchor="middle" letter-spacing="3">SL-1200</text>
+  <circle cx="230" cy="256" r="8" fill="#fef08a" stroke="#78350f" stroke-width="1.5"/>
+
+  <!-- Tonearm Assembly -->
+  <g transform="translate(415, 110)">
+    <!-- Base Gimbal -->
+    <circle cx="0" cy="0" r="34" fill="#1c1c20" stroke="url(#goldGrad)" stroke-width="2.5"/>
+    <circle cx="0" cy="0" r="22" fill="#0c0c0e" stroke="url(#goldGrad)" stroke-width="1.5"/>
+    <!-- Counterweight -->
+    <rect x="-14" y="-40" width="28" height="24" rx="4" fill="url(#goldGrad)" stroke="#5e420b" stroke-width="1.5"/>
+    <!-- S-Shaped Arm Wand -->
+    <path d="M 0 10 Q -20 90 -45 150 Q -70 210 -115 240" fill="none" stroke="url(#goldGrad)" stroke-width="7" stroke-linecap="round"/>
+    <!-- Headshell -->
+    <g transform="translate(-115, 240) rotate(22)">
+      <path d="M -8 0 L 8 0 L 6 28 L -6 28 Z" fill="#18181b" stroke="url(#goldGrad)" stroke-width="2"/>
+      <circle cx="0" cy="30" r="2.5" fill="#38bdf8"/>
+    </g>
+  </g>
+</svg>
