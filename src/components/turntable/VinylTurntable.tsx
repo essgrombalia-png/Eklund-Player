@@ -276,6 +276,15 @@ export const VinylTurntable = ({
     }
   };
 
+  // Technics S-Shaped Tonearm mechanical tracking angles:
+  // - Rest cradle: 0.0° (tonearm parked securely on rest post outside platter)
+  // - Outer lead-in groove (start of music, 0% progress): 17.5°
+  // - Inner run-out groove (end of music, 100% progress): 47.0°
+  // Sweeps horizontally across the vinyl platter by 29.5° as track percentage advances from 0% to 100%
+  const MIN_GROOVE_ANGLE = 17.5;
+  const MAX_GROOVE_ANGLE = 47.0;
+  const GROOVE_ANGLE_SPAN = MAX_GROOVE_ANGLE - MIN_GROOVE_ANGLE; // 29.5°
+
   // Interactive Dragging of Tonearm to Drop Needle / Seek
   const handleTonearmPointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -295,7 +304,7 @@ export const VinylTurntable = ({
       // Vector down is 0 deg; inward to the left increases angle
       let deg = Math.atan2(-dx, dy) * (180 / Math.PI);
       if (deg < 0) deg = 0;
-      if (deg > 40) deg = 40;
+      if (deg > 52) deg = 52;
       return deg;
     };
 
@@ -303,6 +312,7 @@ export const VinylTurntable = ({
     setDragArmAngle(initialAngle);
 
     const onPointerMove = (moveEvt: PointerEvent) => {
+      moveEvt.preventDefault();
       const angle = computeAngleFromEvent(moveEvt.clientX, moveEvt.clientY);
       setDragArmAngle(angle);
     };
@@ -310,13 +320,13 @@ export const VinylTurntable = ({
     const onPointerUp = (upEvt: PointerEvent) => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
 
       const finalAngle = computeAngleFromEvent(upEvt.clientX, upEvt.clientY);
       setIsDraggingArm(false);
       setDragArmAngle(null);
-
-      // If dropped near rest cradle (< 12deg): Park and pause
-      if (finalAngle < 12) {
+      // If dropped near rest cradle (< 12.5deg): Park and pause
+      if (finalAngle < 12.5) {
         setTonearmStage('lowering_to_rest');
         const t1 = window.setTimeout(() => setTonearmStage('parked'), 280);
         tonearmTimersRef.current = [t1];
@@ -324,8 +334,8 @@ export const VinylTurntable = ({
           onPlayPause();
         }
       } else {
-        // Dropped on vinyl platter (tracks from 18.0deg lead-in to 33.0deg run-out)
-        const ratio = Math.max(0, Math.min(1, (finalAngle - 18.0) / 15.0));
+        // Dropped on vinyl platter (tracks from MIN_GROOVE_ANGLE lead-in to MAX_GROOVE_ANGLE run-out)
+        const ratio = Math.max(0, Math.min(1, (finalAngle - MIN_GROOVE_ANGLE) / GROOVE_ANGLE_SPAN));
         handleSeekSeconds(ratio * calculatedDuration);
         setTonearmStage('lowering_to_play');
         const t1 = window.setTimeout(() => setTonearmStage('tracking'), 280);
@@ -339,6 +349,7 @@ export const VinylTurntable = ({
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   };
 
   // Cue Lift Lever Click
@@ -547,10 +558,18 @@ export const VinylTurntable = ({
     };
   }, [activeAmbient]);
 
+  // Track seek jumps to provide smooth easing on manual seek/scrub
+  const lastProgressRef = React.useRef(clampedProgress);
+  const isLargeSeek = Math.abs(clampedProgress - lastProgressRef.current) > 0.025;
+  useEffect(() => {
+    lastProgressRef.current = clampedProgress;
+  }, [clampedProgress]);
+
   // Technics S-Shaped Tonearm mechanical tracking angles:
   // - Rest cradle: 0.0° (tonearm parked securely on rest post)
-  // - Outer lead-in groove (start of music): 18.0°
-  // - Inner run-out groove (end of music): 33.0°
+  // - Outer lead-in groove (start of music, 0% progress): MIN_GROOVE_ANGLE (17.5°)
+  // - Inner run-out groove (end of music, 100% progress): MAX_GROOVE_ANGLE (47.0°)
+  // Sweeps horizontally across the vinyl platter in real-time based on track percentage progress
   const targetArmAngle = useMemo(() => {
     if (dragArmAngle !== null) {
       return dragArmAngle;
@@ -567,8 +586,9 @@ export const VinylTurntable = ({
       return 0.0;
     }
 
-    // When tracking or descending onto the vinyl groove
-    return 18.0 + clampedProgress * 15.0;
+    // When tracking or descending onto the vinyl groove:
+    // Moves horizontally across the platter proportional to clampedProgress (0% to 100%)
+    return MIN_GROOVE_ANGLE + clampedProgress * GROOVE_ANGLE_SPAN;
   }, [currentTrack, tonearmStage, clampedProgress, dragArmAngle]);
 
   // Is the tonearm physically elevated in the air via the cue lifter?
@@ -599,12 +619,12 @@ export const VinylTurntable = ({
         return '260ms';
       case 'tracking':
       default:
-        return '150ms';
+        return isLargeSeek ? '360ms' : '280ms';
     }
-  }, [tonearmStage, isDraggingArm]);
+  }, [tonearmStage, isDraggingArm, isLargeSeek]);
 
   const armTransitionTiming =
-    tonearmStage === 'swinging_to_play' || tonearmStage === 'swinging_to_rest'
+    tonearmStage === 'swinging_to_play' || tonearmStage === 'swinging_to_rest' || isLargeSeek
       ? 'cubic-bezier(0.25, 1, 0.5, 1)'
       : tonearmStage === 'tracking'
       ? 'linear'
@@ -1683,9 +1703,9 @@ export const VinylTurntable = ({
                   <div className="bg-neutral-950/95 border border-amber-400 text-amber-300 font-mono text-[7.5px] px-2 py-0.5 rounded shadow-xl whitespace-nowrap flex items-center gap-1 backdrop-blur-md">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                     <span>
-                      {targetArmAngle < 12
+                      {targetArmAngle < 12.5
                         ? 'PARK IN REST CRADLE'
-                        : `NEEDLE DROP: ${Math.round(((Math.min(33.0, Math.max(18.0, targetArmAngle)) - 18.0) / 15.0) * 100)}%`}
+                        : `NEEDLE DROP: ${Math.round(((Math.min(MAX_GROOVE_ANGLE, Math.max(MIN_GROOVE_ANGLE, targetArmAngle)) - MIN_GROOVE_ANGLE) / GROOVE_ANGLE_SPAN) * 100)}%`}
                     </span>
                   </div>
                 </foreignObject>

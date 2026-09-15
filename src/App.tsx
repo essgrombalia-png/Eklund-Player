@@ -976,7 +976,7 @@ export default function App() {
   }, [currentTime, duration, volume, isPlaying, queue.length, currentIndex, isShuffle, repeatMode, pitchRange]);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-transparent text-white font-sans select-none">
+    <div className="relative w-full h-full min-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden bg-transparent text-white font-sans select-none">
       {/* High-Fidelity Responsive Technics Wallpaper Background */}
       <TechnicsWallpaperBackground isPlaying={isPlaying} />
 

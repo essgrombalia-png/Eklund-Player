@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { MediaItem, RepeatMode, VisualizerMode, SlipmatConfig } from '../../types';
 import { VinylTurntable } from '../turntable/VinylTurntable';
+import { TurntableWaveformBar } from '../turntable/TurntableWaveformBar';
 import { AudioVisualizer } from '../visualizer/AudioVisualizer';
 import { LyricsView } from '../lyrics/LyricsView';
 import { TechnicsPitchControl } from './TechnicsPitchControl';
@@ -288,17 +289,19 @@ export const MusicPlayerView = ({
         <div className="flex items-center p-1 rounded-xl bg-neutral-900/90 border border-neutral-800/80 shadow-inner shrink-0">
           <button
             onClick={() => setCenterMode('vinyl')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
+            className={`px-2 sm:px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
               centerMode === 'vinyl'
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-neutral-950 font-bold shadow-md'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Disc3 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Turntable</span><span className="sm:hidden">Deck</span>
+            <Disc3 className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden xl:inline">Turntable</span>
+            <span className="xl:hidden hidden sm:inline">Deck</span>
           </button>
           <button
             onClick={() => setCenterMode('pitch')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
+            className={`px-2 sm:px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
               centerMode === 'pitch'
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-neutral-950 font-bold shadow-md'
                 : Math.abs(pitchPercent) > 0.05
@@ -306,8 +309,9 @@ export const MusicPlayerView = ({
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Gauge className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Pitch Fader</span><span className="sm:hidden">Pitch</span>
+            <Gauge className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="hidden xl:inline">Pitch Fader</span>
+            <span className="xl:hidden hidden sm:inline">Pitch</span>
             {Math.abs(pitchPercent) > 0.05 && (
               <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-neutral-950/80 text-amber-300 font-bold">
                 {pitchPercent > 0 ? `+${pitchPercent.toFixed(1)}%` : `${pitchPercent.toFixed(1)}%`}
@@ -316,28 +320,31 @@ export const MusicPlayerView = ({
           </button>
           <button
             onClick={() => setCenterMode('visualizer')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
+            className={`px-2 sm:px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
               centerMode === 'visualizer'
                 ? 'bg-cyan-500 text-neutral-950 font-bold shadow-md'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Activity className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Visualizer</span>
+            <Activity className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden xl:inline">Visualizer</span>
+            <span className="xl:hidden hidden sm:inline">Wave</span>
           </button>
           <button
             onClick={() => setCenterMode('lyrics')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
+            className={`px-2 sm:px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
               centerMode === 'lyrics'
                 ? 'bg-amber-400 text-neutral-950 font-bold shadow-md'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Lyrics</span>
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Lyrics</span>
           </button>
         </div>
 
         {/* Quick actions right */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
           {onOpenFilePicker && (
             <button
               onClick={onOpenFilePicker}
@@ -345,7 +352,7 @@ export const MusicPlayerView = ({
               title="Import local audio file (MP3, WAV, FLAC, M4A)"
             >
               <Upload className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden xl:inline">Import Record</span>
+              <span className="hidden 2xl:inline">Import</span>
             </button>
           )}
 
@@ -360,15 +367,18 @@ export const MusicPlayerView = ({
               title="Toggle subtle looping analog vinyl crackle noise effect (Shortcut: C)"
             >
               <Radio className={`w-3.5 h-3.5 ${isVinylCrackleEnabled ? 'text-amber-400 animate-pulse' : 'text-neutral-400'}`} />
-              <span className="text-[11px] font-mono hidden sm:inline">
+              <span className="text-[10px] font-mono hidden xl:inline">
                 CRACKLE {isVinylCrackleEnabled ? 'ON' : 'OFF'}
+              </span>
+              <span className="text-[9.5px] font-mono hidden md:inline xl:hidden">
+                CRACKLE
               </span>
             </button>
           )}
 
           <button
             onClick={() => setShowShortcuts(true)}
-            className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 transition cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center hidden sm:flex"
+            className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 transition cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center hidden xl:flex"
             title="Keyboard Shortcuts (?)"
           >
             <Keyboard className="w-4 h-4" />
@@ -409,40 +419,48 @@ export const MusicPlayerView = ({
       {/* ======================================================== */}
       {/* 2. MAIN CENTERPIECE STAGE - Turntable / Pitch / Visualizer */}
       {/* ======================================================== */}
-      <div className="flex-1 flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 overflow-y-auto min-h-0 -webkit-overflow-scrolling-touch">
+      <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-3 md:p-4 lg:p-6 overflow-y-auto min-h-0 -webkit-overflow-scrolling-touch">
         {/* CENTER VISUAL: Vinyl Turntable / Pitch Deck / Visualizer / Lyrics */}
-        <div className="w-full max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl flex items-center justify-center">
+        <div className="w-full max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-[740px] flex flex-col items-center justify-center my-auto gap-2.5 sm:gap-3">
           {centerMode === 'vinyl' && (
-            <VinylTurntable
-              currentTrack={currentTrack}
-              isPlaying={isPlaying}
-              isBraking={isBraking}
-              progress={duration > 0 ? currentTime / duration : 0}
-              currentTime={currentTime}
-              duration={duration}
-              accentColor={currentTrack.colorAccent || accentColor}
-              isCrackleEnabled={isVinylCrackleEnabled}
-              onToggleCrackle={onToggleVinylCrackle}
-              bassEnergy={bassEnergy}
-              onSeekToRatio={(r) => onSeek(r * duration)}
-              onSeek={onSeek}
-              onPlayPause={onPlayPause}
-              playbackSpeed={playbackSpeed}
-              pitchPercent={pitchPercent}
-              pitchRange={pitchRange}
-              isKeyLock={isKeyLock}
-              onPitchChange={onPitchChange}
-              onPitchRangeToggle={onPitchRangeToggle}
-              onKeyLockToggle={onKeyLockToggle}
-              onResetPitch={onResetPitch}
-              onSpeedChange={onSpeedChange}
-              onOpenArtworkEditor={onOpenArtworkEditor}
-              visualizerMode={visualizerMode}
-              onVisualizerModeChange={onVisualizerModeChange}
-              slipmatConfig={slipmatConfig}
-              onUpdateSlipmatConfig={handleUpdateSlipmatConfig}
-              onOpenSlipmatStudio={() => setIsSlipmatModalOpen(true)}
-            />
+            <>
+              <VinylTurntable
+                currentTrack={currentTrack}
+                isPlaying={isPlaying}
+                isBraking={isBraking}
+                progress={duration > 0 ? currentTime / duration : 0}
+                currentTime={currentTime}
+                duration={duration}
+                accentColor={currentTrack.colorAccent || accentColor}
+                isCrackleEnabled={isVinylCrackleEnabled}
+                onToggleCrackle={onToggleVinylCrackle}
+                bassEnergy={bassEnergy}
+                onSeekToRatio={(r) => onSeek(r * duration)}
+                onSeek={onSeek}
+                onPlayPause={onPlayPause}
+                playbackSpeed={playbackSpeed}
+                pitchPercent={pitchPercent}
+                pitchRange={pitchRange}
+                isKeyLock={isKeyLock}
+                onPitchChange={onPitchChange}
+                onPitchRangeToggle={onPitchRangeToggle}
+                onKeyLockToggle={onKeyLockToggle}
+                onResetPitch={onResetPitch}
+                onSpeedChange={onSpeedChange}
+                onOpenArtworkEditor={onOpenArtworkEditor}
+                visualizerMode={visualizerMode}
+                onVisualizerModeChange={onVisualizerModeChange}
+                slipmatConfig={slipmatConfig}
+                onUpdateSlipmatConfig={handleUpdateSlipmatConfig}
+                onOpenSlipmatStudio={() => setIsSlipmatModalOpen(true)}
+              />
+              {/* Reactive Minimalist Audio Waveform Visualizer Beneath Turntable */}
+              <TurntableWaveformBar
+                isPlaying={isPlaying}
+                accentColor={currentTrack.colorAccent || accentColor}
+                onExpandVisualizer={() => setCenterMode('visualizer')}
+              />
+            </>
           )}
 
           {centerMode === 'pitch' && (

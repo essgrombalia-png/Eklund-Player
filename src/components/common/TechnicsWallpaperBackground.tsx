@@ -9,7 +9,7 @@ export const TechnicsWallpaperBackground: React.FC<TechnicsWallpaperBackgroundPr
   ({ isPlaying = false, opacity = 1 }) => {
     return (
       <div
-        className="technics-page-wallpaper fixed inset-0 w-screen h-screen pointer-events-none -z-50 select-none overflow-hidden"
+        className="technics-page-wallpaper fixed inset-0 w-full h-full min-h-screen pointer-events-none -z-50 select-none overflow-hidden"
         aria-hidden="true"
       >
         {/* High-Resolution Technics Wallpaper Image */}
