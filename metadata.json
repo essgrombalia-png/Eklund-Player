@@ -1,6 +1,6 @@
 {
-  "name": "Aether Player",
-  "description": "High-fidelity audiophile vinyl turntable music deck featuring 3D Technics SL-1200 player paired with a Pioneer DJM-750MK2 4-channel DJ mixer with real-time 3-band EQ/Isolator, Sound Color FX, Beat FX, animated LED VU meters, faders, and slipmat studio.",
+  "name": "Eklund SL-1200",
+  "description": "High-fidelity audiophile vinyl turntable music deck featuring the iconic Eklund SL-1200 player with real-time audio playback, pitch fader, responsive high-resolution wallpaper background, animated stereo LED VU meters, and custom slipmat studio.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

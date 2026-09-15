@@ -235,32 +235,32 @@ export const MusicPlayerView = ({
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-neutral-900/90 via-neutral-950 to-neutral-950 text-white select-none">
-      {/* Dynamic Ambient Background Blur */}
+    <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-transparent text-white select-none">
+      {/* Dynamic Ambient Track Color Tint - subtle so Technics wallpaper is clearly visible */}
       <div
-        className="absolute inset-0 pointer-events-none -z-10 opacity-25 blur-3xl transition-all duration-1000"
+        className="absolute inset-0 pointer-events-none -z-10 opacity-10 blur-3xl transition-all duration-1000"
         style={{
           backgroundImage: `url(${currentTrack.artwork})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          filter: 'blur(80px) saturate(170%)',
+          filter: 'blur(80px) saturate(160%)',
         }}
       />
-      <div className="absolute inset-0 bg-neutral-950/75 -z-10" />
+      <div className="absolute inset-0 bg-black/20 pointer-events-none -z-10" />
 
       {/* ======================================================== */}
       {/* 1. TOP HEADER BAR                                        */}
       {/* ======================================================== */}
-      <div className="flex items-center justify-between px-3 sm:px-4 md:px-5 lg:px-6 py-2.5 sm:py-3 pt-[max(0.65rem,env(safe-area-inset-top))] border-b border-white/5 backdrop-blur-md bg-neutral-950/80 z-20 shrink-0 gap-2 sm:gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-4 md:px-5 lg:px-6 py-2.5 sm:py-3 pt-[max(0.65rem,env(safe-area-inset-top))] border-b border-white/10 backdrop-blur-xl bg-neutral-950/75 z-20 shrink-0 gap-2 sm:gap-3">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* Technics SL-1200 Gold Branding */}
-          <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-transparent border border-amber-500/20 shadow-sm shrink-0">
+          {/* Eklund SL-1200 Gold Branding */}
+          <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-500/30 shadow-sm shrink-0">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" title="Direct Drive Quartz Lock Synchronized" />
             <div className="flex flex-col">
               <span className="text-[10px] sm:text-[11px] font-bold tracking-wider font-mono bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-transparent uppercase whitespace-nowrap">
-                TECHNICS SL-1200 GOLD
+                EKLUND SL-1200 GOLD
               </span>
-              <span className="text-[8.5px] sm:text-[9px] text-amber-300/60 font-mono tracking-tight -mt-0.5 hidden sm:inline">
+              <span className="text-[8.5px] sm:text-[9px] text-amber-300/70 font-mono tracking-tight -mt-0.5 hidden sm:inline">
                 Hi-Fi Direct Drive Master Deck
               </span>
             </div>
@@ -518,7 +518,7 @@ export const MusicPlayerView = ({
       {/* ======================================================== */}
       {/* 3. AUDIOPHILE MASTER TRANSPORT & VOLUME CONSOLE (BOTTOM) */}
       {/* ======================================================== */}
-      <div className="w-full px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-neutral-950/95 backdrop-blur-2xl shadow-[0_-10px_35px_rgba(0,0,0,0.8)] z-30 shrink-0 select-none">
+      <div className="w-full px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-neutral-950/85 backdrop-blur-xl shadow-[0_-10px_35px_rgba(0,0,0,0.8)] z-30 shrink-0 select-none">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 lg:gap-6">
           
           {/* LEFT: Mini Track Info & Artwork Pill */}

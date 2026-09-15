@@ -22,6 +22,7 @@ import { QueueDrawer } from './components/queue/QueueDrawer';
 import { AddToPlaylistModal } from './components/modals/AddToPlaylistModal';
 import { ArtworkEditorModal } from './components/modals/ArtworkEditorModal';
 import { DropZoneOverlay } from './components/common/DropZoneOverlay';
+import { TechnicsWallpaperBackground } from './components/common/TechnicsWallpaperBackground';
 
 const storage = new StorageService();
 
@@ -975,7 +976,10 @@ export default function App() {
   }, [currentTime, duration, volume, isPlaying, queue.length, currentIndex, isShuffle, repeatMode, pitchRange]);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-neutral-950 text-white font-sans select-none">
+    <div className="relative w-screen h-screen overflow-hidden bg-transparent text-white font-sans select-none">
+      {/* High-Fidelity Responsive Technics Wallpaper Background */}
+      <TechnicsWallpaperBackground isPlaying={isPlaying} />
+
       {/* Visual Drag and Drop Overlay */}
       <DropZoneOverlay isDragging={isDraggingFiles} />
 
