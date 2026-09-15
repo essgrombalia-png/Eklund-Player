@@ -1785,7 +1785,7 @@ export const VinylTurntable = ({
         return (
           <div
             id="technics-pitch-assembly"
-            className="absolute top-[58px] sm:top-[66px] left-2.5 sm:left-3.5 w-11 sm:w-13 h-[185px] sm:h-[200px] bg-neutral-950/95 rounded-lg border border-amber-500/70 p-1 sm:p-1.5 flex flex-col items-center justify-between shadow-2xl z-30 select-none cursor-pointer"
+            className="absolute top-[86px] sm:top-[96px] left-2.5 sm:left-3.5 w-11 sm:w-13 h-[185px] sm:h-[200px] bg-neutral-950/95 rounded-lg border border-amber-500/70 p-1 sm:p-1.5 flex flex-col items-center justify-between shadow-2xl z-30 select-none cursor-pointer"
             style={{
               boxShadow: '0 12px 28px rgba(0,0,0,0.9), inset 0 1px 2px rgba(251,191,36,0.35)',
               touchAction: 'none',
