@@ -43,6 +43,7 @@ import { TechnicsPitchControl } from './TechnicsPitchControl';
 import { SLIPMAT_DESIGNS, loadSlipmatConfig, saveSlipmatConfig } from '../turntable/slipmatData';
 import { SlipmatCustomizerModal } from '../turntable/SlipmatCustomizerModal';
 import { WindowsInstallButton } from '../pwa/WindowsInstallButton';
+import { StereoVUMeter } from '../common/StereoVUMeter';
 
 interface MusicPlayerViewProps {
   currentTrack: MediaItem;
@@ -142,6 +143,7 @@ export const MusicPlayerView = ({
   const [bassEnergy, setBassEnergy] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showRemainingTime, setShowRemainingTime] = useState(true);
+  const [showVUMeterModal, setShowVUMeterModal] = useState(false);
 
   // Slipmat customization state
   const [slipmatConfig, setSlipmatConfig] = useState<SlipmatConfig>(() => loadSlipmatConfig());
@@ -387,6 +389,19 @@ export const MusicPlayerView = ({
             <Layers className="w-4 h-4 group-hover:rotate-12 transition-transform" />
           </button>
 
+          {/* Stereo VU Meter Studio Console Button */}
+          <button
+            onClick={() => setShowVUMeterModal((prev) => !prev)}
+            className={`p-2 rounded-xl transition cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center border ${
+              showVUMeterModal
+                ? 'bg-amber-500/25 border-amber-500/60 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                : 'text-neutral-400 hover:text-amber-300 hover:bg-white/10 border-transparent'
+            }`}
+            title="Stereo VU Meter Console (Peak/RMS, Vintage Analog Dials, LED Ladder)"
+          >
+            <Activity className="w-4 h-4 text-amber-400" />
+          </button>
+
           <button
             onClick={onOpenEQ}
             className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 transition cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
@@ -415,38 +430,48 @@ export const MusicPlayerView = ({
       {/* ======================================================== */}
       <div className="flex-1 flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 overflow-y-auto min-h-0 -webkit-overflow-scrolling-touch">
         {/* CENTER VISUAL: Vinyl Turntable / Pitch Deck / Visualizer / Lyrics */}
-        <div className="w-full max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl flex items-center justify-center">
+        <div className="w-full max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl flex flex-col items-center justify-center">
           {centerMode === 'vinyl' && (
-            <VinylTurntable
-              currentTrack={currentTrack}
-              isPlaying={isPlaying}
-              isBraking={isBraking}
-              progress={duration > 0 ? currentTime / duration : 0}
-              currentTime={currentTime}
-              duration={duration}
-              accentColor={currentTrack.colorAccent || accentColor}
-              isCrackleEnabled={isVinylCrackleEnabled}
-              onToggleCrackle={onToggleVinylCrackle}
-              bassEnergy={bassEnergy}
-              onSeekToRatio={(r) => onSeek(r * duration)}
-              onSeek={onSeek}
-              onPlayPause={onPlayPause}
-              playbackSpeed={playbackSpeed}
-              pitchPercent={pitchPercent}
-              pitchRange={pitchRange}
-              isKeyLock={isKeyLock}
-              onPitchChange={onPitchChange}
-              onPitchRangeToggle={onPitchRangeToggle}
-              onKeyLockToggle={onKeyLockToggle}
-              onResetPitch={onResetPitch}
-              onSpeedChange={onSpeedChange}
-              onOpenArtworkEditor={onOpenArtworkEditor}
-              visualizerMode={visualizerMode}
-              onVisualizerModeChange={onVisualizerModeChange}
-              slipmatConfig={slipmatConfig}
-              onUpdateSlipmatConfig={handleUpdateSlipmatConfig}
-              onOpenSlipmatStudio={() => setIsSlipmatModalOpen(true)}
-            />
+            <div className="w-full flex flex-col items-center justify-center gap-2.5 sm:gap-3.5">
+              <VinylTurntable
+                currentTrack={currentTrack}
+                isPlaying={isPlaying}
+                isBraking={isBraking}
+                progress={duration > 0 ? currentTime / duration : 0}
+                currentTime={currentTime}
+                duration={duration}
+                accentColor={currentTrack.colorAccent || accentColor}
+                isCrackleEnabled={isVinylCrackleEnabled}
+                onToggleCrackle={onToggleVinylCrackle}
+                bassEnergy={bassEnergy}
+                onSeekToRatio={(r) => onSeek(r * duration)}
+                onSeek={onSeek}
+                onPlayPause={onPlayPause}
+                playbackSpeed={playbackSpeed}
+                pitchPercent={pitchPercent}
+                pitchRange={pitchRange}
+                isKeyLock={isKeyLock}
+                onPitchChange={onPitchChange}
+                onPitchRangeToggle={onPitchRangeToggle}
+                onKeyLockToggle={onKeyLockToggle}
+                onResetPitch={onResetPitch}
+                onSpeedChange={onSpeedChange}
+                onOpenArtworkEditor={onOpenArtworkEditor}
+                visualizerMode={visualizerMode}
+                onVisualizerModeChange={onVisualizerModeChange}
+                slipmatConfig={slipmatConfig}
+                onUpdateSlipmatConfig={handleUpdateSlipmatConfig}
+                onOpenSlipmatStudio={() => setIsSlipmatModalOpen(true)}
+              />
+
+              {/* Real-time Stereo Animated Peak VU Meter positioned cleanly underneath the turntable */}
+              <div className="w-full max-w-md sm:max-w-lg px-2 flex justify-center z-10">
+                <StereoVUMeter
+                  isPlaying={isPlaying}
+                  className="w-full shadow-[0_12px_32px_rgba(0,0,0,0.85)] border border-amber-500/40 backdrop-blur-md"
+                />
+              </div>
+            </div>
           )}
 
           {centerMode === 'pitch' && (
@@ -871,6 +896,58 @@ export const MusicPlayerView = ({
         albumArtwork={currentTrack.artwork}
         albumTitle={currentTrack.title}
       />
+
+      {/* High-Fidelity Stereo VU Meter Mastering Console Modal */}
+      {showVUMeterModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none"
+          onClick={() => setShowVUMeterModal(false)}
+        >
+          <div
+            className="w-full max-w-xl bg-neutral-950/95 border border-amber-500/50 rounded-2xl p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.9)] space-y-4 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white font-display tracking-wide">
+                    Stereo VU Mastering Console
+                  </h3>
+                  <p className="text-[10px] sm:text-[11px] font-mono text-amber-300/70">
+                    Discrete L/R Real-Time Peak & RMS Audio Ballistics
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowVUMeterModal(false)}
+                className="text-neutral-400 hover:text-white p-1.5 rounded-lg hover:bg-neutral-800 transition cursor-pointer text-sm font-mono"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Stereo VU Meter Component Instance */}
+            <div className="py-1">
+              <StereoVUMeter
+                isPlaying={isPlaying}
+                showDbLabels={true}
+                showCorrelation={true}
+                showClipIndicators={true}
+                interactive={true}
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between pt-2 border-t border-neutral-900 text-[10px] font-mono text-neutral-400 gap-1.5">
+              <span>• Toggle <b>ANALOG</b> / <b>LED</b> button to switch visualizer style</span>
+              <span>• Click ↺ to reset ballistic peak hold</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -110,6 +110,22 @@ export interface AudioEnhancements {
   compressor: boolean;
 }
 
+export interface StereoPeakData {
+  left: number; // Normalized RMS level (0.0 to 1.0)
+  right: number; // Normalized RMS level (0.0 to 1.0)
+  peakL: number; // Peak hold level (0.0 to 1.0)
+  peakR: number; // Peak hold level (0.0 to 1.0)
+  peakRawL: number; // Instantaneous max absolute sample amplitude (0.0 to 1.0+)
+  peakRawR: number; // Instantaneous max absolute sample amplitude (0.0 to 1.0+)
+  dbL: number; // Left RMS in decibels (-60 to +6 dBFS)
+  dbR: number; // Right RMS in decibels (-60 to +6 dBFS)
+  peakDbL: number; // Left Peak hold in decibels (-60 to +6 dBFS)
+  peakDbR: number; // Right Peak hold in decibels (-60 to +6 dBFS)
+  isClippingL: boolean; // True when left channel approaches or exceeds 0 dBFS (>= 0.98)
+  isClippingR: boolean; // True when right channel approaches or exceeds 0 dBFS (>= 0.98)
+  correlation: number; // Stereo phase correlation (-1.0 out-of-phase to +1.0 in-phase)
+}
+
 export interface PlaybackHistoryEntry {
   id: string;
   mediaId: string;

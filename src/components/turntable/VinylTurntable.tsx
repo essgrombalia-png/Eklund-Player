@@ -9,7 +9,7 @@ import { VinylHeatmapHUD } from './VinylHeatmapHUD';
 import { SLIPMAT_DESIGNS, loadSlipmatConfig, saveSlipmatConfig } from './slipmatData';
 import { SlipmatRenderer } from './SlipmatRenderer';
 import { SlipmatCustomizerModal } from './SlipmatCustomizerModal';
-import { LedVuMeter } from './LedVuMeter';
+import { usePlatterPhysics } from '../../hooks/usePlatterPhysics';
 
 export type AmbientLightingMode = 'dynamic' | 'vivid' | 'warm' | 'pristine';
 
@@ -687,86 +687,23 @@ export const VinylTurntable = ({
   }, [isVinylPresent]);
 
   // --- Physical Direct-Drive High-Torque Motor Rotation & Braking Engine ---
-  const [platterAngle, setPlatterAngle] = useState<number>(0);
-  const rotationAngleRef = React.useRef<number>(0);
-  const angularVelocityRef = React.useRef<number>(0); // in degrees per second
-  const lastTimestampRef = React.useRef<number | null>(null);
-  const rafIdRef = React.useRef<number | null>(null);
-
-  // Target angular velocity when powered: 33⅓ RPM = 200 deg/s, 45 RPM = 270 deg/s
-  const targetVelocity = useMemo(() => {
-    if (!isPlaying || isBraking) return 0;
-    const baseDegPerSec = is33 ? 200 : 270;
-    const speedMult = Math.max(0.2, playbackSpeed || 1);
-    const pitchMult = 1 + activePitch / 100;
-    return baseDegPerSec * speedMult * pitchMult;
-  }, [isPlaying, isBraking, is33, playbackSpeed, activePitch]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const updatePlatterPhysics = (now: number) => {
-      if (lastTimestampRef.current === null) {
-        lastTimestampRef.current = now;
-      }
-      const dt = Math.min(0.05, (now - lastTimestampRef.current) / 1000); // delta in seconds
-      lastTimestampRef.current = now;
-
-      const currentVel = angularVelocityRef.current;
-      const targetVel = targetVelocity;
-
-      let nextVel = currentVel;
-
-      if (isPlaying && !isBraking) {
-        // Direct-Drive High-Torque Brushless Motor: Spin-up acceleration in ~350ms
-        const maxAccel = (is33 ? 200 : 270) / 0.35;
-        if (currentVel < targetVel) {
-          nextVel = Math.min(targetVel, currentVel + maxAccel * dt);
-        } else if (currentVel > targetVel) {
-          nextVel = Math.max(targetVel, currentVel - maxAccel * dt);
-        }
-      } else {
-        // Technics Solenoid Reverse-Torque Motor Electronic Brake: Decelerates smoothly to 0 over 750ms
-        const baseVel = is33 ? 200 : 270;
-        const maxDecel = baseVel / 0.75;
-        if (currentVel > 0) {
-          nextVel = Math.max(0, currentVel - maxDecel * dt);
-        } else {
-          nextVel = 0;
-        }
-      }
-
-      angularVelocityRef.current = nextVel;
-      rotationAngleRef.current = (rotationAngleRef.current + nextVel * dt) % 360;
-
-      if (isMounted) {
-        setPlatterAngle(rotationAngleRef.current);
-      }
-
-      // Loop continues while motor is active or platter is still spinning/braking
-      if (isPlaying || isBraking || nextVel > 0.05) {
-        rafIdRef.current = requestAnimationFrame(updatePlatterPhysics);
-      } else {
-        lastTimestampRef.current = null;
-        rafIdRef.current = null;
-      }
-    };
-
-    if (isPlaying || isBraking || angularVelocityRef.current > 0.05) {
-      if (!rafIdRef.current) {
-        lastTimestampRef.current = null;
-        rafIdRef.current = requestAnimationFrame(updatePlatterPhysics);
-      }
-    }
-
-    return () => {
-      isMounted = false;
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-    };
-  }, [isPlaying, isBraking, targetVelocity, is33]);
+  const {
+    angularVelocity,
+    platterAngle,
+    rpm,
+    targetRpm,
+    isAccelerating,
+    isDecelerating,
+    isSpinning,
+  } = usePlatterPhysics({
+    isPlaying,
+    playbackSpeed,
+    pitchPercent: activePitch,
+    is33,
+    isBraking,
+    startDurationMs: 450,
+    brakeDurationMs: 750,
+  });
 
   // Track rotational progress in degrees for display (0° to 360°)
   const trackAngleDeg = Math.round(clampedProgress * 360);
@@ -793,7 +730,7 @@ export const VinylTurntable = ({
       {/* ======================================================== */}
       {/* 1. TOP PANEL: 45 RPM EP ADAPTER DOCK & DUAL LED VU METERS */}
       {/* ======================================================== */}
-      <div className="flex items-center gap-2.5 sm:gap-3 absolute top-3 sm:top-3.5 left-3 sm:left-3.5 z-20 select-none max-w-[calc(100%-120px)]">
+      <div className="flex items-center gap-2.5 sm:gap-3 absolute top-3 sm:top-3.5 left-3 sm:left-3.5 z-20 select-none">
         {/* 45 RPM Adapter Dock */}
         <div
           className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-amber-500/80 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all group shadow-md shrink-0"
@@ -809,9 +746,6 @@ export const VinylTurntable = ({
             </div>
           </div>
         </div>
-
-        {/* Real-time Stereo Animated LED VU Meter */}
-        <LedVuMeter isPlaying={isPlaying} />
       </div>
 
       {/* Plinth Ambient Underglow Halo - centered behind the platter */}
@@ -1043,7 +977,7 @@ export const VinylTurntable = ({
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-gradient-to-tr from-neutral-950 via-neutral-900 to-neutral-950 text-white">
-                        <span className="text-sm font-black uppercase tracking-widest text-amber-400 font-serif">Technics</span>
+                        <span className="text-sm font-black uppercase tracking-widest text-amber-400 font-serif">EKLUND</span>
                         <span className="text-xs text-amber-200/80 mt-1">SL-1200GLD Special Edition</span>
                       </div>
                     )}
@@ -1066,10 +1000,18 @@ export const VinylTurntable = ({
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-1/2 bg-gradient-to-b from-amber-200 via-amber-400/80 to-transparent pointer-events-none shadow-[0_0_4px_#fde68a]" />
 
                       <div className="text-[6.5px] sm:text-[7px] font-mono text-amber-300 font-bold uppercase tracking-widest">
-                        {is33 ? '33⅓ RPM' : '45 RPM'}
+                        {isAccelerating
+                          ? `START ${rpm.toFixed(1)}`
+                          : isDecelerating
+                          ? `BRAKE ${rpm.toFixed(1)}`
+                          : isSpinning
+                          ? `${rpm.toFixed(1)} RPM`
+                          : is33
+                          ? '33⅓ RPM'
+                          : '45 RPM'}
                       </div>
                       <div className="text-[8px] sm:text-[9px] font-serif font-black text-amber-200 uppercase tracking-tighter my-0.5">
-                        TECHNICS
+                        EKLUND
                       </div>
                       <div className="text-[6.5px] sm:text-[7px] font-bold text-white max-w-[65px] truncate font-mono">
                         {currentTrack ? currentTrack.title : 'NO DISC'}
@@ -1113,7 +1055,7 @@ export const VinylTurntable = ({
                     )}
 
                     <div className="text-[7px] sm:text-[8px] font-serif font-black text-amber-300 uppercase tracking-tight">
-                      TECHNICS
+                      EKLUND
                     </div>
                     <div className="text-[6px] sm:text-[6.5px] font-mono font-bold text-white max-w-[70px] truncate">
                       {currentTrack ? currentTrack.title : 'ANALOG LP'}
@@ -1619,7 +1561,7 @@ export const VinylTurntable = ({
               <circle cx="-3.8" cy="19" r="1.8" fill="#14110b" stroke="#7a5510" strokeWidth="0.5" />
               <circle cx="3.8" cy="19" r="1.8" fill="#14110b" stroke="#7a5510" strokeWidth="0.5" />
 
-              {/* Laser-Etched Technics Wordmark */}
+              {/* Laser-Etched Eklund Wordmark */}
               <text
                 x="0"
                 y="27"
@@ -1630,7 +1572,7 @@ export const VinylTurntable = ({
                 fontWeight="900"
                 letterSpacing="-0.3"
               >
-                Technics
+                Eklund
               </text>
 
               {/* 4 Miniature Color-Coded Cartridge Terminal Lead Wires */}
@@ -1958,10 +1900,10 @@ export const VinylTurntable = ({
           </div>
         </button>
 
-        {/* Technics Typography */}
+        {/* Eklund Plinth Typography */}
         <div className="text-right">
           <div className="font-serif font-black text-xs sm:text-sm tracking-tight text-neutral-900 uppercase drop-shadow-sm">
-            Technics
+            EKLUND
           </div>
           <div className="text-[6px] sm:text-[7px] font-mono font-extrabold text-neutral-800 uppercase tracking-tighter">
             DIRECT DRIVE TURNTABLE SYSTEM SL-1200GLD

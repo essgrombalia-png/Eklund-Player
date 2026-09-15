@@ -297,7 +297,7 @@ export const SlipmatCustomizerModal: React.FC<SlipmatCustomizerModalProps> = ({
                       <div className="absolute inset-0 rounded-full vinyl-grooves opacity-60" />
                       {/* 4" Center Label */}
                       <div className="absolute inset-[30%] rounded-full border-2 border-amber-400/80 bg-neutral-900 flex flex-col items-center justify-center p-2 text-center">
-                        <span className="text-[7px] font-serif font-black text-amber-400">TECHNICS</span>
+                        <span className="text-[7px] font-serif font-black text-amber-400">EKLUND</span>
                         <span className="text-[6px] font-mono text-amber-200 truncate max-w-[60px]">{albumTitle}</span>
                       </div>
                     </div>

@@ -37,7 +37,9 @@ export default function App() {
   // --- Active Playback State ---
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isBraking, setIsBraking] = useState<boolean>(false);
+  const [isSpinningUp, setIsSpinningUp] = useState<boolean>(false);
   const brakeRafRef = useRef<number | null>(null);
+  const spinUpRafRef = useRef<number | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [volume, setVolume] = useState<number>(0.85);
@@ -217,7 +219,7 @@ export default function App() {
 
   // Synchronize playback rate and Master Key Lock (preservesPitch)
   useEffect(() => {
-    if (audioRef.current && !isBraking) {
+    if (audioRef.current && !isBraking && !isSpinningUp) {
       if ('preservesPitch' in audioRef.current) {
         audioRef.current.preservesPitch = isKeyLock;
       } else if ('mozPreservesPitch' in audioRef.current) {
@@ -231,14 +233,14 @@ export default function App() {
         // Safe fallback
       }
     }
-  }, [effectiveSpeed, isKeyLock, isBraking]);
+  }, [effectiveSpeed, isKeyLock, isBraking, isSpinningUp]);
 
   // Synchronize play / pause state
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
 
-    if (isPlaying) {
+    if (isPlaying && !isSpinningUp && !isBraking) {
       // Ensure AudioContext is running
       if (audioEngine.isInitialized) {
         audioEngine.resume();
@@ -248,11 +250,12 @@ export default function App() {
         console.warn(`Playback prevented or waiting for user interaction: ${msg}`);
         setIsPlaying(false);
         setIsBraking(false);
+        setIsSpinningUp(false);
       });
-    } else if (!isBraking) {
+    } else if (!isPlaying && !isBraking && !isSpinningUp) {
       el.pause();
     }
-  }, [isPlaying, isBraking, currentMedia?.id]);
+  }, [isPlaying, isBraking, isSpinningUp, currentMedia?.id]);
 
   // Track progress and resume position
   useEffect(() => {
@@ -270,15 +273,20 @@ export default function App() {
     return () => clearInterval(interval);
   }, [currentMedia?.id, isPlaying, currentTime]);
 
-  const cancelBrake = () => {
+  const cancelPhysicsTransitions = () => {
     if (brakeRafRef.current !== null) {
       cancelAnimationFrame(brakeRafRef.current);
       brakeRafRef.current = null;
     }
+    if (spinUpRafRef.current !== null) {
+      cancelAnimationFrame(spinUpRafRef.current);
+      spinUpRafRef.current = null;
+    }
     setIsBraking(false);
+    setIsSpinningUp(false);
   };
 
-  // --- Playback Controls ---
+  // --- Playback Controls with Physical Slow-Start & Spin-Down ---
   const handlePlayPause = () => {
     const el = audioRef.current;
     if (el && !audioEngine.isInitialized) {
@@ -286,33 +294,66 @@ export default function App() {
     }
 
     if (isBraking) {
-      // If currently braking and user clicks play again, instantly cancel brake and resume spinning!
-      cancelBrake();
-      if (el) {
-        if ('preservesPitch' in el) el.preservesPitch = isKeyLock;
-        if ('mozPreservesPitch' in el) (el as any).mozPreservesPitch = isKeyLock;
-        if ('webkitPreservesPitch' in el) (el as any).webkitPreservesPitch = isKeyLock;
-        try {
-          el.playbackRate = effectiveSpeed;
-        } catch {
-          // Ignore
-        }
-        el.play().catch(() => {});
-      }
+      // If currently braking and user clicks play again, smoothly accelerate back up from current speed!
+      const currentRate = el ? el.playbackRate || 0.2 : 0.2;
+      cancelPhysicsTransitions();
+      setIsSpinningUp(true);
       setIsPlaying(true);
+
+      if (el) {
+        if ('preservesPitch' in el) el.preservesPitch = false;
+        if ('mozPreservesPitch' in el) (el as any).mozPreservesPitch = false;
+        if ('webkitPreservesPitch' in el) (el as any).webkitPreservesPitch = false;
+        el.play().catch(() => {});
+
+        const startTime = performance.now();
+        const startRate = Math.max(0.12, currentRate);
+        const SPIN_UP_DURATION = 400; // ms
+
+        const runSpinUpStep = (now: number) => {
+          const elapsed = now - startTime;
+          const t = Math.min(1, elapsed / SPIN_UP_DURATION);
+          const curve = 1 - Math.pow(1 - t, 1.8);
+          const nextRate = Math.max(0.1, startRate + (effectiveSpeed - startRate) * curve);
+
+          if (el && !el.paused) {
+            try {
+              el.playbackRate = nextRate;
+            } catch {}
+          }
+
+          if (t < 1) {
+            spinUpRafRef.current = requestAnimationFrame(runSpinUpStep);
+          } else {
+            if (el) {
+              try {
+                el.playbackRate = effectiveSpeed;
+              } catch {}
+              if ('preservesPitch' in el) el.preservesPitch = isKeyLock;
+              if ('mozPreservesPitch' in el) (el as any).mozPreservesPitch = isKeyLock;
+              if ('webkitPreservesPitch' in el) (el as any).webkitPreservesPitch = isKeyLock;
+            }
+            setIsSpinningUp(false);
+            spinUpRafRef.current = null;
+          }
+        };
+
+        spinUpRafRef.current = requestAnimationFrame(runSpinUpStep);
+      }
       return;
     }
 
     if (isPlaying) {
-      // Initiate Technics Electronic Motor Brake effect (~750ms slowdown with pitch drop)
+      // Initiate Technics Electronic Motor Brake effect (~750ms slowdown with vinyl pitch drop)
       if (!el || el.paused) {
         setIsPlaying(false);
         return;
       }
 
+      cancelPhysicsTransitions();
       setIsBraking(true);
       const startTime = performance.now();
-      const initialSpeed = effectiveSpeed;
+      const initialSpeed = el.playbackRate || effectiveSpeed;
       const BRAKE_DURATION = 750; // milliseconds
 
       // Temporarily disable preservesPitch to allow realistic vinyl tape-stop pitch wind-down
@@ -324,16 +365,13 @@ export default function App() {
         const elapsed = now - startTime;
         const t = Math.min(1, elapsed / BRAKE_DURATION);
         // Technics SL-1200 electromagnetic reverse-torque deceleration curve
-        const speedFactor = Math.pow(1 - t, 2.0);
-        // Standard HTMLMediaElement browser minimum playbackRate is 0.0625 (1/16); clamp safely to 0.1
-        const currentRate = Math.max(0.1, initialSpeed * speedFactor);
+        const speedFactor = Math.pow(1 - t, 2.2);
+        const currentRate = Math.max(0.08, initialSpeed * speedFactor);
 
         if (el && !el.paused) {
           try {
             el.playbackRate = currentRate;
-          } catch {
-            // Guard against any browser-specific rate limitations
-          }
+          } catch {}
         }
 
         if (t < 1) {
@@ -344,9 +382,7 @@ export default function App() {
             el.pause();
             try {
               el.playbackRate = effectiveSpeed;
-            } catch {
-              // Ignore
-            }
+            } catch {}
             if ('preservesPitch' in el) el.preservesPitch = isKeyLock;
             if ('mozPreservesPitch' in el) (el as any).mozPreservesPitch = isKeyLock;
             if ('webkitPreservesPitch' in el) (el as any).webkitPreservesPitch = isKeyLock;
@@ -359,19 +395,62 @@ export default function App() {
 
       brakeRafRef.current = requestAnimationFrame(runBrakeStep);
     } else {
-      // Starting playback
-      cancelBrake();
-      if (el) {
-        if ('preservesPitch' in el) el.preservesPitch = isKeyLock;
-        if ('mozPreservesPitch' in el) (el as any).mozPreservesPitch = isKeyLock;
-        if ('webkitPreservesPitch' in el) (el as any).webkitPreservesPitch = isKeyLock;
-        try {
-          el.playbackRate = effectiveSpeed;
-        } catch {
-          // Ignore
-        }
-      }
+      // Starting playback with authentic slow-start motor acceleration physics
+      cancelPhysicsTransitions();
+      setIsSpinningUp(true);
       setIsPlaying(true);
+
+      if (el) {
+        if ('preservesPitch' in el) el.preservesPitch = false;
+        if ('mozPreservesPitch' in el) (el as any).mozPreservesPitch = false;
+        if ('webkitPreservesPitch' in el) (el as any).webkitPreservesPitch = false;
+
+        const initialRate = 0.15;
+        try {
+          el.playbackRate = initialRate;
+        } catch {}
+
+        el.play().catch((err) => {
+          console.warn('Playback prevented or waiting for interaction:', err);
+          setIsPlaying(false);
+          setIsSpinningUp(false);
+        });
+
+        const startTime = performance.now();
+        const SPIN_UP_DURATION = 450; // ms
+
+        const runSpinUpStep = (now: number) => {
+          const elapsed = now - startTime;
+          const t = Math.min(1, elapsed / SPIN_UP_DURATION);
+          // Direct-Drive brushless DC starting torque curve
+          const curve = 1 - Math.pow(1 - t, 1.8);
+          const currentRate = Math.max(0.1, initialRate + (effectiveSpeed - initialRate) * curve);
+
+          if (el && !el.paused) {
+            try {
+              el.playbackRate = currentRate;
+            } catch {}
+          }
+
+          if (t < 1) {
+            spinUpRafRef.current = requestAnimationFrame(runSpinUpStep);
+          } else {
+            // Reached quartz speed: lock to target and re-engage user's key lock preference
+            if (el) {
+              try {
+                el.playbackRate = effectiveSpeed;
+              } catch {}
+              if ('preservesPitch' in el) el.preservesPitch = isKeyLock;
+              if ('mozPreservesPitch' in el) (el as any).mozPreservesPitch = isKeyLock;
+              if ('webkitPreservesPitch' in el) (el as any).webkitPreservesPitch = isKeyLock;
+            }
+            setIsSpinningUp(false);
+            spinUpRafRef.current = null;
+          }
+        };
+
+        spinUpRafRef.current = requestAnimationFrame(runSpinUpStep);
+      }
     }
   };
 
@@ -384,7 +463,7 @@ export default function App() {
   };
 
   const handleNext = () => {
-    cancelBrake();
+    cancelPhysicsTransitions();
     if (queue.length === 0) return;
     let nextIdx: number;
     if (isShuffle && queue.length > 1) {
@@ -402,7 +481,7 @@ export default function App() {
   };
 
   const handlePrevious = () => {
-    cancelBrake();
+    cancelPhysicsTransitions();
     if (queue.length === 0) return;
     if (currentTime > 3) {
       handleSeek(0);

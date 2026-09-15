@@ -1,4 +1,6 @@
-import { EQ_FREQUENCIES, EQSettings, AudioEnhancements } from '../types';
+import { EQ_FREQUENCIES, EQSettings, AudioEnhancements, StereoPeakData } from '../types';
+
+export type { StereoPeakData };
 
 export const EQ_PRESETS: Record<string, number[]> = {
   Flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -43,6 +45,19 @@ export class AudioEngine {
   private isBeatFxOn = false;
   private peakLevelL = 0;
   private peakLevelR = 0;
+
+  // --- Dedicated Stereo Channel Splitter and Left/Right Analysers ---
+  private splitterNode: ChannelSplitterNode | null = null;
+  private analyserL: AnalyserNode | null = null;
+  private analyserR: AnalyserNode | null = null;
+  private timeDataFloatL: Float32Array = new Float32Array(512);
+  private timeDataFloatR: Float32Array = new Float32Array(512);
+  private peakHoldL = 0;
+  private peakHoldR = 0;
+  private peakHoldDecayL = 0;
+  private peakHoldDecayR = 0;
+  private lastClipTimestampL = 0;
+  private lastClipTimestampR = 0;
 
   // Vinyl Crackle Noise Generator
   private vinylCrackleBuffer: AudioBuffer | null = null;
@@ -204,6 +219,25 @@ export class AudioEngine {
 
     this.djMasterGain.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
+
+    // Discrete Stereo Channel Splitter and Dedicated L/R Analysers for VU Metering
+    try {
+      this.splitterNode = this.ctx.createChannelSplitter(2);
+      this.analyserL = this.ctx.createAnalyser();
+      this.analyserL.fftSize = 512;
+      this.analyserL.smoothingTimeConstant = 0.15;
+
+      this.analyserR = this.ctx.createAnalyser();
+      this.analyserR.fftSize = 512;
+      this.analyserR.smoothingTimeConstant = 0.15;
+
+      // Connect master output to channel splitter, and left/right to their respective analysers
+      this.djMasterGain.connect(this.splitterNode);
+      this.splitterNode.connect(this.analyserL, 0);
+      this.splitterNode.connect(this.analyserR, 1);
+    } catch (e) {
+      console.warn('Stereo splitter setup warning:', e);
+    }
   }
 
   public attachMediaElement(element: HTMLMediaElement): boolean {
@@ -327,53 +361,158 @@ export class AudioEngine {
     return this.ctx;
   }
 
-  // Real-time audio levels calculation (RMS, frequency energy, and peak hold) for VU Meters
-  public getRealtimeAudioLevels(): { left: number; right: number; peakL: number; peakR: number } {
+  /**
+   * Comprehensive discrete stereo peak and level analysis for VU meters, clip indicators,
+   * and high-fidelity mastering displays.
+   */
+  public getStereoPeakData(): StereoPeakData {
+    // If dedicated stereo analysers are ready, sample discrete L and R channels
+    if (this.analyserL && this.analyserR && this.ctx && this.ctx.state === 'running') {
+      const bufLen = this.analyserL.fftSize;
+      if (this.timeDataFloatL.length !== bufLen) {
+        this.timeDataFloatL = new Float32Array(bufLen);
+        this.timeDataFloatR = new Float32Array(bufLen);
+      }
+
+      this.analyserL.getFloatTimeDomainData(this.timeDataFloatL);
+      this.analyserR.getFloatTimeDomainData(this.timeDataFloatR);
+
+      let sumSqL = 0;
+      let sumSqR = 0;
+      let peakRawL = 0;
+      let peakRawR = 0;
+      let dotProd = 0;
+
+      for (let i = 0; i < bufLen; i++) {
+        const sL = this.timeDataFloatL[i];
+        const sR = this.timeDataFloatR[i];
+
+        const absL = Math.abs(sL);
+        const absR = Math.abs(sR);
+
+        if (absL > peakRawL) peakRawL = absL;
+        if (absR > peakRawR) peakRawR = absR;
+
+        sumSqL += sL * sL;
+        sumSqR += sR * sR;
+        dotProd += sL * sR;
+      }
+
+      const rmsL = Math.sqrt(sumSqL / Math.max(1, bufLen));
+      const rmsR = Math.sqrt(sumSqR / Math.max(1, bufLen));
+
+      const toDb = (val: number) => {
+        if (val <= 0.0001) return -60;
+        const db = 20 * Math.log10(val);
+        return Math.max(-60, Math.min(6, Math.round(db * 10) / 10));
+      };
+
+      const dbL = toDb(rmsL * 1.414);
+      const dbR = toDb(rmsR * 1.414);
+      const peakDbL = toDb(peakRawL);
+      const peakDbR = toDb(peakRawR);
+
+      // Scaled 0.0 - 1.0 response combining RMS weight and transient peak punch
+      const normL = Math.min(1, Math.max(0, rmsL * 2.2 + peakRawL * 0.35));
+      const normR = Math.min(1, Math.max(0, rmsR * 2.2 + peakRawR * 0.35));
+
+      // Ballistic Peak Hold with Gravity Decay
+      if (normL >= this.peakHoldL) {
+        this.peakHoldL = normL;
+        this.peakHoldDecayL = 16;
+      } else {
+        if (this.peakHoldDecayL > 0) {
+          this.peakHoldDecayL--;
+        } else {
+          this.peakHoldL = Math.max(0, this.peakHoldL * 0.94 - 0.005);
+        }
+      }
+
+      if (normR >= this.peakHoldR) {
+        this.peakHoldR = normR;
+        this.peakHoldDecayR = 16;
+      } else {
+        if (this.peakHoldDecayR > 0) {
+          this.peakHoldDecayR--;
+        } else {
+          this.peakHoldR = Math.max(0, this.peakHoldR * 0.94 - 0.005);
+        }
+      }
+
+      // Clip detection (>= 0.98 or peakDb >= -0.2 dB) with latching for visual clarity
+      const now = Date.now();
+      if (peakRawL >= 0.98) this.lastClipTimestampL = now;
+      if (peakRawR >= 0.98) this.lastClipTimestampR = now;
+
+      const isClippingL = (now - this.lastClipTimestampL) < 220;
+      const isClippingR = (now - this.lastClipTimestampR) < 220;
+
+      // Stereo Phase Correlation (-1.0 to +1.0)
+      const denom = Math.sqrt(sumSqL) * Math.sqrt(sumSqR);
+      const correlation = denom > 0.0001 ? Math.max(-1, Math.min(1, dotProd / denom)) : 1.0;
+
+      return {
+        left: normL,
+        right: normR,
+        peakL: this.peakHoldL,
+        peakR: this.peakHoldR,
+        peakRawL,
+        peakRawR,
+        dbL,
+        dbR,
+        peakDbL,
+        peakDbR,
+        isClippingL,
+        isClippingR,
+        correlation,
+      };
+    }
+
+    // Fallback if audio context not running or discrete analysers not yet initialized
     if (!this.analyser) {
-      return { left: 0, right: 0, peakL: 0, peakR: 0 };
+      return {
+        left: 0,
+        right: 0,
+        peakL: 0,
+        peakR: 0,
+        peakRawL: 0,
+        peakRawR: 0,
+        dbL: -60,
+        dbR: -60,
+        peakDbL: -60,
+        peakDbR: -60,
+        isClippingL: false,
+        isClippingR: false,
+        correlation: 1.0,
+      };
     }
 
     const bufferLength = this.analyser.fftSize;
     const timeData = new Uint8Array(bufferLength);
     this.analyser.getByteTimeDomainData(timeData);
 
-    const freqData = new Uint8Array(this.analyser.frequencyBinCount);
-    this.analyser.getByteFrequencyData(freqData);
-
-    // Calculate RMS from time domain data
+    const half = Math.floor(timeData.length / 2);
     let sumSquaresL = 0;
     let sumSquaresR = 0;
-    const half = Math.floor(timeData.length / 2);
+    let peakL = 0;
+    let peakR = 0;
 
     for (let i = 0; i < half; i++) {
-      const valL = (timeData[i] - 128) / 128;
+      const valL = Math.abs((timeData[i] - 128) / 128);
+      if (valL > peakL) peakL = valL;
       sumSquaresL += valL * valL;
-      const valR = (timeData[i + half] - 128) / 128;
+
+      const valR = Math.abs((timeData[i + half] - 128) / 128);
+      if (valR > peakR) peakR = valR;
       sumSquaresR += valR * valR;
     }
 
     const rmsL = Math.sqrt(sumSquaresL / Math.max(1, half));
     const rmsR = Math.sqrt(sumSquaresR / Math.max(1, half));
 
-    // Also get frequency energy
-    let lowEnergy = 0;
-    let highEnergy = 0;
-    const freqBins = freqData.length;
-    const splitIndex = Math.floor(freqBins * 0.35);
-    for (let i = 0; i < splitIndex; i++) {
-      lowEnergy += freqData[i];
-    }
-    for (let i = splitIndex; i < freqBins; i++) {
-      highEnergy += freqData[i];
-    }
-    const avgLow = lowEnergy / (Math.max(1, splitIndex) * 255);
-    const avgHigh = highEnergy / (Math.max(1, freqBins - splitIndex) * 255);
+    const leftLevel = Math.min(1, Math.max(0, rmsL * 2.4));
+    const rightLevel = Math.min(1, Math.max(0, rmsR * 2.4));
 
-    // Combine for expressive stereo response (Left leans low-mid, Right leans mid-high)
-    const leftLevel = Math.min(1, Math.max(0, rmsL * 2.4 + avgLow * 0.4));
-    const rightLevel = Math.min(1, Math.max(0, rmsR * 2.4 + avgHigh * 0.4));
-
-    // Fast attack, smooth decay peak hold
     this.peakLevelL = Math.max(leftLevel, this.peakLevelL * 0.94);
     this.peakLevelR = Math.max(rightLevel, this.peakLevelR * 0.94);
 
@@ -382,6 +521,26 @@ export class AudioEngine {
       right: rightLevel,
       peakL: this.peakLevelL,
       peakR: this.peakLevelR,
+      peakRawL: peakL,
+      peakRawR: peakR,
+      dbL: Math.max(-60, Math.min(6, 20 * Math.log10(rmsL || 0.0001))),
+      dbR: Math.max(-60, Math.min(6, 20 * Math.log10(rmsR || 0.0001))),
+      peakDbL: Math.max(-60, Math.min(6, 20 * Math.log10(peakL || 0.0001))),
+      peakDbR: Math.max(-60, Math.min(6, 20 * Math.log10(peakR || 0.0001))),
+      isClippingL: peakL >= 0.98,
+      isClippingR: peakR >= 0.98,
+      correlation: 1.0,
+    };
+  }
+
+  // Real-time audio levels calculation (RMS, frequency energy, and peak hold) for backwards compatibility
+  public getRealtimeAudioLevels(): { left: number; right: number; peakL: number; peakR: number } {
+    const data = this.getStereoPeakData();
+    return {
+      left: data.left,
+      right: data.right,
+      peakL: data.peakL,
+      peakR: data.peakR,
     };
   }
 
@@ -756,6 +915,162 @@ export class AudioEngine {
       }
     }, 250);
   }
+
+  /**
+   * Synchronize an HTMLMediaElement playback rate and pitch with physical platter angular velocity
+   * during slow-start spin-up and spin-down braking.
+   */
+  public applyPlatterPitchRamp(
+    element: HTMLMediaElement,
+    currentVelocity: number,
+    targetVelocity: number,
+    basePlaybackSpeed: number,
+    isKeyLock: boolean,
+    isBraking: boolean
+  ): void {
+    if (!element) return;
+
+    if (isBraking) {
+      // Disable key lock so the vinyl tape-stop pitch wind-down is fully audible
+      if ('preservesPitch' in element) element.preservesPitch = false;
+      if ('mozPreservesPitch' in element) (element as any).mozPreservesPitch = false;
+      if ('webkitPreservesPitch' in element) (element as any).webkitPreservesPitch = false;
+
+      const maxRef = Math.max(1, targetVelocity);
+      const ratio = Math.max(0.08, currentVelocity / maxRef);
+      const rate = Math.max(0.08, basePlaybackSpeed * ratio);
+      try {
+        element.playbackRate = rate;
+      } catch {}
+    } else {
+      const isSlowStarting = targetVelocity > 0 && currentVelocity < targetVelocity * 0.985;
+      if (isSlowStarting) {
+        // Authentic direct-drive slow-start motor ramp up
+        if ('preservesPitch' in element) element.preservesPitch = false;
+        if ('mozPreservesPitch' in element) (element as any).mozPreservesPitch = false;
+        if ('webkitPreservesPitch' in element) (element as any).webkitPreservesPitch = false;
+
+        const ratio = Math.max(0.12, currentVelocity / targetVelocity);
+        const rate = Math.max(0.12, basePlaybackSpeed * ratio);
+        try {
+          element.playbackRate = rate;
+        } catch {}
+      } else {
+        // Locked at target velocity: restore key lock / master tempo setting
+        if ('preservesPitch' in element) element.preservesPitch = isKeyLock;
+        if ('mozPreservesPitch' in element) (element as any).mozPreservesPitch = isKeyLock;
+        if ('webkitPreservesPitch' in element) (element as any).webkitPreservesPitch = isKeyLock;
+        try {
+          element.playbackRate = basePlaybackSpeed;
+        } catch {}
+      }
+    }
+  }
 }
 
 export const audioEngine = new AudioEngine();
+
+// ========================================================
+// DIRECT-DRIVE PLATTER PHYSICS CONSTANTS & EQUATIONS
+// ========================================================
+export const PLATTER_BASE_RPM_33 = 33.333333333333336;
+export const PLATTER_BASE_RPM_45 = 45.0;
+export const RPM_TO_DEG_PER_SEC = 360 / 60; // 6.0 deg/sec per RPM
+export const PLATTER_BASE_VELOCITY_33 = PLATTER_BASE_RPM_33 * RPM_TO_DEG_PER_SEC; // 200.0 deg/s
+export const PLATTER_BASE_VELOCITY_45 = PLATTER_BASE_RPM_45 * RPM_TO_DEG_PER_SEC; // 270.0 deg/s
+export const DEG_TO_RAD = Math.PI / 180;
+
+export interface PlatterPhysicsConfig {
+  is33?: boolean;
+  baseRpm?: number;
+  playbackSpeed?: number;
+  pitchPercent?: number;
+}
+
+export interface PlatterTargetVelocityResult {
+  targetDegPerSec: number;
+  targetRpm: number;
+  targetRadPerSec: number;
+  baseDegPerSec: number;
+  baseRpm: number;
+  pitchMult: number;
+  speedMult: number;
+}
+
+/**
+ * Calculates theoretical target angular velocity and RPM for the platter based on
+ * standard RPM setting (33⅓ vs 45), speed multiplier, and Technics pitch fader percentage.
+ */
+export function calculatePlatterTargetVelocity(
+  config: PlatterPhysicsConfig = {}
+): PlatterTargetVelocityResult {
+  const is33 = config.is33 !== false;
+  const baseRpm = config.baseRpm ?? (is33 ? PLATTER_BASE_RPM_33 : PLATTER_BASE_RPM_45);
+  const baseDegPerSec = baseRpm * RPM_TO_DEG_PER_SEC;
+  const speedMult = Math.max(0.1, config.playbackSpeed ?? 1.0);
+  const pitchMult = 1 + (config.pitchPercent ?? 0) / 100;
+
+  const targetDegPerSec = baseDegPerSec * speedMult * pitchMult;
+  const targetRpm = baseRpm * speedMult * pitchMult;
+  const targetRadPerSec = targetDegPerSec * DEG_TO_RAD;
+
+  return {
+    targetDegPerSec,
+    targetRpm,
+    targetRadPerSec,
+    baseDegPerSec,
+    baseRpm,
+    pitchMult,
+    speedMult,
+  };
+}
+
+/**
+ * High-precision numerical integration step simulating Technics SL-1200 direct-drive
+ * high-torque motor acceleration and solenoid electromagnetic reverse-torque braking.
+ */
+export function computeNextPlatterVelocity(
+  currentVel: number,
+  targetVel: number,
+  dt: number,
+  isBraking: boolean,
+  startDurationSec = 0.45,
+  brakeDurationSec = 0.75
+): number {
+  // 1. Deceleration / Braking phase (reverse torque solenoid brake)
+  if (isBraking || targetVel <= 0) {
+    if (currentVel <= 0.15) return 0;
+    // Technics electromagnetic brake curve with high initial decel tapering to 0
+    const decelRate = Math.max(90, (currentVel / Math.max(0.15, brakeDurationSec)) * 1.6);
+    const next = currentVel - decelRate * dt;
+    return next <= 0.4 ? 0 : next;
+  }
+
+  // 2. Slow-start Spin-up phase (Direct-Drive 1.5 kg·cm brushless DC motor)
+  if (currentVel < targetVel) {
+    const diff = targetVel - currentVel;
+    // Initial starting torque kick that smoothly settles onto the quartz-locked target
+    const torqueFactor = Math.max(0.4, 1.35 * (diff / targetVel));
+    const accelRate = (targetVel / Math.max(0.15, startDurationSec)) * torqueFactor;
+    const next = currentVel + accelRate * dt;
+    return next >= targetVel * 0.998 ? targetVel : next;
+  }
+
+  // 3. Inertial pitch/speed adjustment downwards while playing
+  if (currentVel > targetVel) {
+    const diff = currentVel - targetVel;
+    const decelFactor = Math.max(0.45, 1.15 * (diff / currentVel));
+    const decelRate = (currentVel / Math.max(0.15, startDurationSec)) * decelFactor;
+    const next = currentVel - decelRate * dt;
+    return next <= targetVel * 1.002 ? targetVel : next;
+  }
+
+  return targetVel;
+}
+
+// Export custom physics-based hook in the audio engine
+export { usePlatterPhysics } from '../hooks/usePlatterPhysics';
+export type {
+  UsePlatterPhysicsOptions,
+  PlatterPhysicsResult,
+} from '../hooks/usePlatterPhysics';
